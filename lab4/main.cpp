@@ -1,11 +1,8 @@
 #include <iostream>
 #include <fstream>
-#include <list>
 
 
 #include "tinyThreadPool/thread_pool.hpp"
-
-
 #include "Analyzer.hpp"
 
 
@@ -47,13 +44,10 @@ void command(Analyzer& analyzer) {
 }
 
 
-void readFiles(Analyzer& analyzer, std::list<std::thread>& pool,
+void readFiles(Analyzer& analyzer, tp::ThreadPool& pool,
                size_t k, const std::vector<std::string>& filenames) {
-    auto total_threads = k;
-    size_t i = 0;
-    bool end = true;
-    for (; i < filenames.size() && end; ++i) {
-        pool.emplace_back([&, fileNumber = i]() {
+    for (size_t i = 0, index = 0; i < filenames.size(); ++i) {
+        pool.Submit([&, fileNumber = i, index = index]() {
             std::ifstream file(filenames[fileNumber]);
             if (!file.is_open()) {
                 std::cout << "Error: file " + filenames[fileNumber] + " did not open\n";
@@ -62,43 +56,14 @@ void readFiles(Analyzer& analyzer, std::list<std::thread>& pool,
 
             char c;
             while (file.get(c)) {
-                analyzer.add_char_from_file(fileNumber, c);
+                analyzer.add_char_from_file(index, c);
             }
         });
-        if (--total_threads == 0) {
-            end = false;
+        if (++index == k) {
+            index = 0;
         }
     }
-
-    if (!end) {
-        //  Можно лучше
-        for (size_t index = 0; i < filenames.size(); ++i) {
-            pool.front().join();
-            pool.pop_front();
-            pool.emplace_back([&, fileNumber = i, index = index]() {
-                std::ifstream file(filenames[fileNumber]);
-                if (!file.is_open()) {
-                    std::cout << "Error: file " + filenames[fileNumber] + " did not open\n";
-                    return;
-                }
-
-                char c;
-                while (file.get(c)) {
-                    analyzer.add_char_from_file(index, c);
-                }
-            });
-            if (++index == pool.size()) {
-                index = 0;
-            }
-        }
-    }
-
-    for (auto&& thread : pool) {
-        if (thread.joinable()) {
-            thread.join();
-        }
-    }
-
+    pool.WaitIdle();
     analyzer.endRead();
 }
 
@@ -113,12 +78,12 @@ int main() {
     }
 
     Analyzer analyzer(k);
-    std::list<std::thread> pool;
+    tp::ThreadPool pool(k);
     std::vector<std::string> filenames {
             {"text1.txt"}, {"text2.txt"}, {"text3.txt"}
     };
 
-
     readFiles(analyzer, pool, k, filenames);
+    pool.Stop();
     command(analyzer);
 }

@@ -88,7 +88,16 @@ public:
     }
 
     void endRead() {
-
+        for (size_t i = 0; i < maps.size(); ++i) {
+            for (auto&& elem : maps[i]) {
+                auto it = full_map.find(elem.first);
+                if (it != full_map.end()) {
+                    it->second += elem.second;
+                } else {
+                    full_map.insert(elem);
+                }
+            }
+        }
     }
 
 private:
