@@ -97,6 +97,7 @@ public:
                     full_map.insert(elem);
                 }
             }
+            maps[i].clear();
         }
     }
 
